@@ -1,0 +1,30 @@
+# Example caller workflow. Copy to .github/workflows/monkey-test.yml in your
+# repo and adjust the triggers, inputs, and secrets to your project.
+
+name: Monkey Test
+
+on:
+  # Keep workflow_dispatch so the test can always be run manually.
+  workflow_dispatch:
+  # Run whenever you cut a deploy - adjust to your flow (a staging branch, a
+  # release PR into main, a tag push, or a cron schedule instead).
+  pull_request:
+    branches: [staging]
+
+permissions:
+  contents: read
+  pull-requests: write # only needed when pr_comment is true
+
+jobs:
+  monkey-test:
+    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0
+    with:
+      # Point this at whatever's deployed and testable - no staging/prod
+      # distinction is assumed.
+      base_url: ${{ vars.TEST_TARGET_URL }}
+      # model: google/gemini-3.1-flash-lite  # omit to use OpenRouter auto-routing
+      context: tests/monkey/context.md # inline text works too
+      pr_comment: true
+    secrets:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      TEST_CREDENTIALS: ${{ secrets.TEST_CREDENTIALS }}

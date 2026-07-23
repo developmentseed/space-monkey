@@ -1,0 +1,28 @@
+name: Test
+
+# Manual end-to-end test of the reusable workflow against a real deployed app.
+# Requires the OPENROUTER_API_KEY repo secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: URL of a deployed app to test against
+        required: true
+        type: string
+      model:
+        description: OpenRouter model slug (default = auto-routing)
+        required: false
+        type: string
+        default: openrouter/auto
+
+jobs:
+  monkey-test:
+    uses: ./.github/workflows/monkey-test.yml
+    permissions:
+      contents: read
+    with:
+      base_url: ${{ inputs.base_url }}
+      model: ${{ inputs.model }}
+    secrets:
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}

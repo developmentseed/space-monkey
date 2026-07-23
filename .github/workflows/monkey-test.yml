@@ -1,0 +1,290 @@
+name: Monkey Test
+
+# Reusable workflow: LLM-driven exploratory ("monkey") testing of a deployed
+# web app via OpenCode + Playwright MCP. See README.md for usage.
+
+on:
+  workflow_call:
+    inputs:
+      base_url:
+        description: URL of the deployed app to test
+        required: true
+        type: string
+      model:
+        description: >-
+          OpenRouter model slug (e.g. google/gemini-3.1-flash-lite). Defaults
+          to OpenRouter auto-routing, so any model/provider/data-retention
+          restrictions configured on the API key itself apply.
+        required: false
+        type: string
+        default: openrouter/auto
+      context:
+        description: >-
+          App-specific testing context appended to the base prompt. Either
+          inline text or a path to a file in the calling repository.
+        required: false
+        type: string
+        default: ''
+      pr_comment:
+        description: >-
+          Post the report as a sticky PR comment. Requires the caller to grant
+          pull-requests write permission.
+        required: false
+        type: boolean
+        default: false
+      timeout_minutes:
+        description: Job timeout in minutes
+        required: false
+        type: number
+        default: 45
+      fail_on_issues:
+        description: >-
+          Fail the job when the report contains ISSUE blocks. Off by default
+          because the test is non-deterministic; enable to gate merges via
+          branch protection.
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      OPENROUTER_API_KEY:
+        description: OpenRouter API key
+        required: true
+      TEST_CREDENTIALS:
+        description: >-
+          Free-form text block describing test accounts (emails, passwords,
+          roles). Appended to the prompt under a "Test accounts" section.
+        required: false
+    outputs:
+      issue_count:
+        description: Number of ISSUE blocks found in the report
+        value: ${{ jobs.monkey-test.outputs.issue_count }}
+
+jobs:
+  monkey-test:
+    name: LLM exploratory test
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ inputs.timeout_minutes }}
+    concurrency:
+      group: monkey-test-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    outputs:
+      issue_count: ${{ steps.report.outputs.issue_count }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install OpenCode and browser
+        # ubuntu-latest ships with Chrome preinstalled, in which case
+        # `playwright install chrome` errors - fall back to deps-only.
+        run: |
+          npm install -g opencode-ai
+          npx -y playwright install --with-deps chrome || npx -y playwright install-deps chrome
+
+      - name: Generate OpenCode config
+        env:
+          MODEL_INPUT: ${{ inputs.model }}
+        run: |
+          MODEL="$MODEL_INPUT"
+          case "$MODEL" in
+            openrouter/*) ;;
+            *) MODEL="openrouter/$MODEL" ;;
+          esac
+          jq -n --arg model "$MODEL" '{
+            "$schema": "https://opencode.ai/config.json",
+            model: $model,
+            provider: { openrouter: { apiKey: "{env:OPENROUTER_API_KEY}" } },
+            mcp: {
+              playwright: {
+                type: "local",
+                command: ["npx", "-y", "@playwright/mcp@0.0.68", "--browser", "chrome"],
+                enabled: true
+              }
+            },
+            tools: {
+              bash: false,
+              read: false,
+              write: false,
+              edit: false,
+              ls: false,
+              glob: false,
+              grep: false,
+              "playwright*run_code_unsafe": false
+            }
+          }' > "$RUNNER_TEMP/opencode.json"
+
+      - name: Build prompt
+        env:
+          BASE_URL: ${{ inputs.base_url }}
+          CONTEXT_INPUT: ${{ inputs.context }}
+          TEST_CREDENTIALS: ${{ secrets.TEST_CREDENTIALS }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          PROMPT="$RUNNER_TEMP/monkey-prompt.txt"
+          {
+            cat <<'BASE'
+          You are an adversarial QA tester for a web application. Your goal is to find things that are broken, confusing, or inconsistent - not to confirm that happy paths work.
+          BASE
+            echo ""
+            echo "The app is already deployed and running at: $BASE_URL"
+            cat <<'BASE'
+
+          Do NOT attempt to start a server, read files, or run shell commands. Use only the browser tools to navigate and interact with the app.
+
+          On page load, cookie banners, consent dialogs, or feedback/survey modals may appear. Dismiss them (press Escape or click their close button) before doing anything else.
+
+          Stay on the app's own domain. Do not test third-party sites; if an external link is broken, note it and move on. Prefer navigating via the app's own links and buttons over guessing URLs.
+
+          ## What to do
+
+          Explore the app broadly, then dig into whatever looks most fragile. You must:
+          - Visit at least 5 distinct pages or sections of the app
+          - On each page, perform at least one interaction (click a button, submit a form, follow a link) - don't just observe it
+          - Submit at least two forms with invalid or empty data and observe the response
+          - Attempt at least one action or URL that should not be allowed
+          - Check the browser console for errors on every page you visit
+
+          If something works, try to break it. If a button is disabled, note why. If an error message appears, note whether it is clear and accurate.
+
+          Also explore as time allows:
+          - Auth edge cases: wrong password, empty fields, session behavior (if the app has sign-in)
+          - Navigation: back button, rapid clicks, unexpected sequences
+          - Failed network requests
+          BASE
+            echo ""
+            if [ -n "$TEST_CREDENTIALS" ]; then
+              cat <<'BASE'
+          ## Test accounts
+
+          Sign in as each account listed below in turn and test the app from its perspective. For each account, before moving to the next one:
+          - Visit at least 3 distinct pages or sections as that account
+          - Attempt at least one action or URL that should be forbidden for that account's role
+          - Sign out through the app's own sign-out control before switching accounts
+
+          BASE
+              echo "$TEST_CREDENTIALS"
+            else
+              cat <<'BASE'
+          ## Access
+
+          No test accounts are provided. Test as an anonymous visitor. If the app has a sign-in form, probe it with invalid credentials and observe the error handling, but do not create accounts.
+          BASE
+            fi
+            if [ -n "$CONTEXT_INPUT" ]; then
+              echo ""
+              echo "## App-specific context"
+              echo ""
+              if [ -f "$CONTEXT_INPUT" ]; then
+                cat "$CONTEXT_INPUT"
+              else
+                echo "$CONTEXT_INPUT"
+              fi
+            fi
+            if [ -n "$PR_NUMBER" ]; then
+              echo ""
+              echo "## Recent changes (PR diff)"
+              echo ""
+              echo "Use these as a starting point for what to test, not as an exclusive list:"
+              echo ""
+              gh pr diff "$PR_NUMBER" | head -c 60000 || true
+            fi
+            cat <<'BASE'
+
+          ## Reporting
+
+          Log every issue you find using this format. One block per issue. If the same error appears on multiple pages, log it once and note which pages it appeared on.
+
+          ISSUE
+          account: [email, or "anonymous"]
+          type: [broken | unexpected | console-error]
+          page: [URL or page name]
+          action: [what you did]
+          observed: [what happened]
+          severity: [high | medium | low]
+          suggested_fix: [likely cause or fix]
+          END_ISSUE
+
+          At the end, write a brief summary (3-5 sentences) of overall findings and anything needing immediate attention.
+          BASE
+          } > "$PROMPT"
+
+      - name: Run monkey test
+        continue-on-error: true
+        env:
+          OPENCODE_CONFIG: ${{ runner.temp }}/opencode.json
+          OPENCODE_DISABLE_AUTOUPDATE: 'true'
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: opencode run "$(cat "$RUNNER_TEMP/monkey-prompt.txt")" > "$RUNNER_TEMP/monkey-report.md"
+
+      - name: Publish report to job summary
+        id: report
+        if: always()
+        run: |
+          REPORT="$RUNNER_TEMP/monkey-report.md"
+          {
+            echo "## 🐒 Monkey Test"
+            echo ""
+            if [ -s "$REPORT" ]; then
+              cat "$REPORT"
+            else
+              echo "_Monkey test did not produce a report._"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          COUNT=$(grep -c '^ISSUE' "$REPORT" 2>/dev/null || true)
+          echo "issue_count=${COUNT:-0}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monkey-test-report
+          path: ${{ runner.temp }}/monkey-report.md
+          if-no-files-found: ignore
+
+      - name: Post sticky PR comment
+        if: always() && inputs.pr_comment && github.event.pull_request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          MARKER='<!-- monkey-test-report -->'
+          REPORT="$RUNNER_TEMP/monkey-report.md"
+          BODY_FILE="$RUNNER_TEMP/comment.md"
+          {
+            echo "$MARKER"
+            echo "## 🐒 Monkey Test"
+            echo ""
+            if [ -s "$REPORT" ]; then
+              head -c 60000 "$REPORT"
+              if [ "$(wc -c < "$REPORT")" -gt 60000 ]; then
+                echo ""
+                echo "_Report truncated - full report in the [job summary](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})._"
+              fi
+            else
+              echo "_Monkey test did not produce a report._"
+            fi
+          } > "$BODY_FILE"
+          COMMENT_ID=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" --paginate |
+            jq -r --arg marker "$MARKER" '[.[] | select(.body | startswith($marker))][0].id // empty')
+          if [ -n "$COMMENT_ID" ]; then
+            gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -F body=@"$BODY_FILE" > /dev/null
+          else
+            gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -F body=@"$BODY_FILE" > /dev/null
+          fi
+
+      - name: Enforce fail_on_issues
+        if: inputs.fail_on_issues
+        env:
+          ISSUE_COUNT: ${{ steps.report.outputs.issue_count }}
+        run: |
+          if [ "${ISSUE_COUNT:-0}" -gt 0 ]; then
+            echo "::error::Monkey test found $ISSUE_COUNT issue(s). See the job summary for the report."
+            exit 1
+          fi
