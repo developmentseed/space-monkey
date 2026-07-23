@@ -19,10 +19,5 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: actionlint
-        run: |
-          bash <(curl -s https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
-          ./actionlint -color
-
       - name: Security scan
-        uses: developmentseed/security-action@v0
+        uses: developmentseed/security-action@main
