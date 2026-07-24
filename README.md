@@ -50,7 +50,6 @@ You choose when it runs: the `on:` block lives in _your_ workflow. Some choices 
 | `context` | string | `''` | App-specific testing context appended to the base prompt: UI quirks (e.g. "a feedback modal appears on load — dismiss it"), how to sign out, areas to focus on. Accepts inline text **or** a path to a file in your repo. |
 | `pr_comment` | boolean | `false` | Post the report as a sticky PR comment (updated in place on re-runs). Requires `pull-requests: write`. |
 | `timeout_minutes` | number | `45` | Job timeout. |
-| `fail_on_issues` | boolean | `false` | Fail the job when the report contains `ISSUE` blocks, so branch protection can gate merges. Off by default because runs are non-deterministic. |
 
 ## Secrets
 
@@ -63,7 +62,23 @@ You choose when it runs: the `on:` block lives in _your_ workflow. Some choices 
 
 | Output | Description |
 | --- | --- |
-| `issue_count` | Number of `ISSUE` blocks in the report. |
+| `issue_count` | Number of issues found in the report. |
+
+This workflow never fails the job based on findings — the test is non-deterministic, so treat it as a signal to guide development, not a merge gate. If you want to gate merges on it anyway, use `issue_count` in your own workflow:
+
+```yaml
+jobs:
+  monkey-test:
+    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0
+    with: { base_url: ${{ vars.TEST_TARGET_URL }} }
+    secrets: { OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }} }
+  gate:
+    needs: monkey-test
+    runs-on: ubuntu-latest
+    if: needs.monkey-test.outputs.issue_count > 0
+    steps:
+      - run: exit 1
+```
 
 ## Where results go
 

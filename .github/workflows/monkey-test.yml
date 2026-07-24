@@ -41,14 +41,6 @@ on:
         required: false
         type: number
         default: 45
-      fail_on_issues:
-        description: >-
-          Fail the job when the report contains ISSUE blocks. Off by default
-          because the test is non-deterministic; enable to gate merges via
-          branch protection.
-        required: false
-        type: boolean
-        default: false
     secrets:
       OPENROUTER_API_KEY:
         description: OpenRouter API key
@@ -142,6 +134,8 @@ jobs:
 
           Do NOT attempt to start a server, read files, or run shell commands. Use only the browser tools to navigate and interact with the app.
 
+          Do not narrate what you are doing or plan to do. Do not describe pages you visited or actions you took in prose - only report them as ISSUE blocks per the format below. A tool call failing or timing out is itself worth reporting as an ISSUE; do not claim an action succeeded unless the tool result confirms it did.
+
           On page load, cookie banners, consent dialogs, or feedback/survey modals may appear. Dismiss them (press Escape or click their close button) before doing anything else.
 
           Stay on the app's own domain. Do not test third-party sites; if an external link is broken, note it and move on. Prefer navigating via the app's own links and buttons over guessing URLs.
@@ -203,17 +197,18 @@ jobs:
 
           ## Reporting
 
-          Log every issue you find using this format. One block per issue. If the same error appears on multiple pages, log it once and note which pages it appeared on.
+          Your output must contain nothing but issue headings (if any) and the closing summary below - no play-by-play narration of what you explored.
 
-          ISSUE
-          account: [email, or "anonymous"]
-          type: [broken | unexpected | console-error]
-          page: [URL or page name]
-          action: [what you did]
-          observed: [what happened]
-          severity: [high | medium | low]
-          suggested_fix: [likely cause or fix]
-          END_ISSUE
+          Log every issue you find using this format, starting each with a `### ISSUE:` heading. One heading per issue. If the same error appears on multiple pages, log it once and note which pages it appeared on.
+
+          ### ISSUE: [short title]
+          - **Account:** [email, or "anonymous"]
+          - **Type:** [broken | unexpected | console-error]
+          - **Page:** [URL or page name]
+          - **Action:** [what you did]
+          - **Observed:** [what happened]
+          - **Severity:** [high | medium | low]
+          - **Suggested fix:** [likely cause or fix]
 
           At the end, write a brief summary (3-5 sentences) of overall findings and anything needing immediate attention.
           BASE
@@ -241,7 +236,7 @@ jobs:
               echo "_Monkey test did not produce a report._"
             fi
           } >> "$GITHUB_STEP_SUMMARY"
-          COUNT=$(grep -c '^ISSUE' "$REPORT" 2>/dev/null || true)
+          COUNT=$(grep -c '^### ISSUE' "$REPORT" 2>/dev/null || true)
           echo "issue_count=${COUNT:-0}" >> "$GITHUB_OUTPUT"
 
       - name: Post sticky PR comment
@@ -273,14 +268,4 @@ jobs:
             gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${COMMENT_ID}" -F body=@"$BODY_FILE" > /dev/null
           else
             gh api -X POST "repos/${GITHUB_REPOSITORY}/issues/${PR_NUMBER}/comments" -F body=@"$BODY_FILE" > /dev/null
-          fi
-
-      - name: Enforce fail_on_issues
-        if: inputs.fail_on_issues
-        env:
-          ISSUE_COUNT: ${{ steps.report.outputs.issue_count }}
-        run: |
-          if [ "${ISSUE_COUNT:-0}" -gt 0 ]; then
-            echo "::error::Monkey test found $ISSUE_COUNT issue(s). See the job summary for the report."
-            exit 1
           fi
