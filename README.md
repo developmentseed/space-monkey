@@ -43,25 +43,25 @@ You choose when it runs: the `on:` block lives in _your_ workflow. Some choices 
 
 ## Inputs
 
-| Input | Type | Default | Description |
-| --- | --- | --- | --- |
-| `base_url` | string | _(required)_ | URL of the deployed app to test — staging, a preview deploy, production, whatever's reachable. No environment tiers are assumed. |
-| `model` | string | `openrouter/auto` | OpenRouter's own model ID, exactly as OpenRouter names it (e.g. `google/gemini-3.1-flash-lite`, or `openrouter/auto` for its [auto router](https://openrouter.ai/docs/guides/routing/routers/auto-router)). The default uses auto-routing, so restrictions configured on your API key (allowed models/providers, data retention) govern what runs. OpenRouter's newer `openrouter/auto-beta` isn't in OpenCode's model catalog yet, so avoid it until it is. |
-| `context` | string | `''` | App-specific testing context appended to the base prompt: UI quirks (e.g. "a feedback modal appears on load — dismiss it"), how to sign out, areas to focus on. Accepts inline text **or** a path to a file in your repo. |
-| `pr_comment` | boolean | `false` | Post the report as a sticky PR comment (updated in place on re-runs). Requires `pull-requests: write`. |
-| `timeout_minutes` | number | `45` | Job timeout. |
+| Input             | Type    | Default           | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ----------------- | ------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `base_url`        | string  | _(required)_      | URL of the deployed app to test — staging, a preview deploy, production, whatever's reachable. No environment tiers are assumed.                                                                                                                                                                                                                                                                                                                             |
+| `model`           | string  | `openrouter/auto` | OpenRouter's own model ID, exactly as OpenRouter names it (e.g. `google/gemini-3.1-flash-lite`, or `openrouter/auto` for its [auto router](https://openrouter.ai/docs/guides/routing/routers/auto-router)). The default uses auto-routing, so restrictions configured on your API key (allowed models/providers, data retention) govern what runs. OpenRouter's newer `openrouter/auto-beta` isn't in OpenCode's model catalog yet, so avoid it until it is. |
+| `context`         | string  | `''`              | App-specific testing context appended to the base prompt: UI quirks (e.g. "a feedback modal appears on load — dismiss it"), how to sign out, areas to focus on. Accepts inline text **or** a path to a file in your repo.                                                                                                                                                                                                                                    |
+| `pr_comment`      | boolean | `false`           | Post the report as a sticky PR comment (updated in place on re-runs). Requires `pull-requests: write`.                                                                                                                                                                                                                                                                                                                                                       |
+| `timeout_minutes` | number  | `45`              | Job timeout.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ## Secrets
 
-| Secret | Required | Description |
-| --- | --- | --- |
-| `OPENROUTER_API_KEY` | yes | OpenRouter API key. |
-| `TEST_CREDENTIALS` | no | Free-form text listing test accounts, one per line, e.g. `reviewer: alice@example.com / hunter2 (can approve submissions)`. If provided, the agent signs in as each account and probes role boundaries; if omitted, it tests as an anonymous visitor. |
+| Secret               | Required | Description                                                                                                                                                                                                                                           |
+| -------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `OPENROUTER_API_KEY` | yes      | OpenRouter API key.                                                                                                                                                                                                                                   |
+| `TEST_CREDENTIALS`   | no       | Free-form text listing test accounts, one per line, e.g. `reviewer: alice@example.com / hunter2 (can approve submissions)`. If provided, the agent signs in as each account and probes role boundaries; if omitted, it tests as an anonymous visitor. |
 
 ## Outputs
 
-| Output | Description |
-| --- | --- |
+| Output        | Description                           |
+| ------------- | ------------------------------------- |
 | `issue_count` | Number of issues found in the report. |
 
 This workflow never fails the job based on findings — the test is non-deterministic, so treat it as a signal to guide development, not a merge gate. If you want to gate merges on it anyway, use `issue_count` in your own workflow:
@@ -101,6 +101,9 @@ The base prompt is deliberately generic. The `context` input is where the test i
 
 > [!CAUTION]
 > Use throwaway test accounts against non-production deployments only. The agent is instructed to be adversarial; assume anything those accounts can do, it may do — including against real data if pointed at production.
+
+> [!CAUTION]
+> `TEST_CREDENTIALS` can end up visible in the output summary report or in the action logs, due to the non-deterministic way the agent writes the summary of issues found. While testing has not found this to happen so far, it is possible.
 
 - The LLM step runs with **no GitHub token**: only `OPENROUTER_API_KEY` is in its environment, and OpenCode's shell/file tools are disabled — the agent can only drive the browser.
 - Set a spend limit on the OpenRouter key. A run is capped at
