@@ -46,7 +46,7 @@ You choose when it runs: the `on:` block lives in _your_ workflow. Some choices 
 | Input | Type | Default | Description |
 | --- | --- | --- | --- |
 | `base_url` | string | _(required)_ | URL of the deployed app to test — staging, a preview deploy, production, whatever's reachable. No environment tiers are assumed. |
-| `model` | string | `openrouter/auto-beta` | OpenRouter model slug (e.g. `google/gemini-3.1-flash-lite`). The default uses [OpenRouter's auto router](https://openrouter.ai/docs/guides/routing/routers/auto-router), so restrictions configured on your API key (allowed models/providers, data retention) govern what runs. |
+| `model` | string | `openrouter/auto` | OpenRouter's own model ID, exactly as OpenRouter names it (e.g. `google/gemini-3.1-flash-lite`, or `openrouter/auto` for its [auto router](https://openrouter.ai/docs/guides/routing/routers/auto-router)). The default uses auto-routing, so restrictions configured on your API key (allowed models/providers, data retention) govern what runs. OpenRouter's newer `openrouter/auto-beta` isn't in OpenCode's model catalog yet, so avoid it until it is. |
 | `context` | string | `''` | App-specific testing context appended to the base prompt: UI quirks (e.g. "a feedback modal appears on load — dismiss it"), how to sign out, areas to focus on. Accepts inline text **or** a path to a file in your repo. |
 | `pr_comment` | boolean | `false` | Post the report as a sticky PR comment (updated in place on re-runs). Requires `pull-requests: write`. |
 | `timeout_minutes` | number | `45` | Job timeout. |
@@ -68,7 +68,6 @@ You choose when it runs: the `on:` block lives in _your_ workflow. Some choices 
 ## Where results go
 
 - **Job summary** — always, on the run's page in the Actions tab.
-- **Artifact** — the raw `monkey-test-report.md`, always.
 - **Sticky PR comment** — when `pr_comment: true` and the run has PR context. One comment per PR, updated in place on subsequent runs.
 
 ## Writing good `context`

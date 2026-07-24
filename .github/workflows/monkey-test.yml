@@ -12,12 +12,16 @@ on:
         type: string
       model:
         description: >-
-          OpenRouter model slug (e.g. google/gemini-3.1-flash-lite). Defaults
-          to OpenRouter auto-routing, so any model/provider/data-retention
-          restrictions configured on the API key itself apply.
+          OpenRouter's own model ID, exactly as OpenRouter names it (e.g.
+          google/gemini-3.1-flash-lite, or openrouter/auto for its auto
+          router). Defaults to OpenRouter auto-routing, so any
+          model/provider/data-retention restrictions configured on the API
+          key itself apply. (openrouter/auto-beta, OpenRouter's newer auto
+          router id, isn't in OpenCode's model catalog yet - don't use it
+          until it is.)
         required: false
         type: string
-        default: openrouter/auto-beta
+        default: openrouter/auto
       context:
         description: >-
           App-specific testing context appended to the base prompt. Either
@@ -90,11 +94,11 @@ jobs:
         env:
           MODEL_INPUT: ${{ inputs.model }}
         run: |
-          MODEL="$MODEL_INPUT"
-          case "$MODEL" in
-            openrouter/*) ;;
-            *) MODEL="openrouter/$MODEL" ;;
-          esac
+          # OpenCode addresses models as <opencode-provider>/<underlying-model-id>.
+          # MODEL_INPUT is OpenRouter's own model ID (e.g. "google/gemini-3.1-flash-lite",
+          # or "openrouter/auto" for its auto router - that "openrouter/" is part of
+          # OpenRouter's own model ID, not ours, so it must NOT be deduplicated here).
+          MODEL="openrouter/$MODEL_INPUT"
           jq -n --arg model "$MODEL" '{
             "$schema": "https://opencode.ai/config.json",
             model: $model,
@@ -215,21 +219,13 @@ jobs:
           BASE
           } > "$PROMPT"
 
-      # TEMPORARY diagnostics - remove once the UnknownError root cause is found
-      - name: DEBUG list models
-        continue-on-error: true
-        env:
-          OPENCODE_CONFIG: ${{ runner.temp }}/opencode.json
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: opencode models openrouter --print-logs --log-level DEBUG
-
       - name: Run monkey test
         continue-on-error: true
         env:
           OPENCODE_CONFIG: ${{ runner.temp }}/opencode.json
           OPENCODE_DISABLE_AUTOUPDATE: 'true'
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: opencode run "$(cat "$RUNNER_TEMP/monkey-prompt.txt")" --print-logs --log-level DEBUG > "$RUNNER_TEMP/monkey-report.md"
+        run: opencode run "$(cat "$RUNNER_TEMP/monkey-prompt.txt")" > "$RUNNER_TEMP/monkey-report.md"
 
       - name: Publish report to job summary
         id: report
@@ -247,14 +243,6 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
           COUNT=$(grep -c '^ISSUE' "$REPORT" 2>/dev/null || true)
           echo "issue_count=${COUNT:-0}" >> "$GITHUB_OUTPUT"
-
-      - name: Upload report artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: monkey-test-report
-          path: ${{ runner.temp }}/monkey-report.md
-          if-no-files-found: ignore
 
       - name: Post sticky PR comment
         if: always() && inputs.pr_comment && github.event.pull_request

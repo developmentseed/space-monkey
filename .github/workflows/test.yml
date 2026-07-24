@@ -14,7 +14,7 @@ on:
         description: OpenRouter model slug (default = auto-routing)
         required: false
         type: string
-        default: openrouter/auto-beta
+        default: openrouter/auto
 
 jobs:
   monkey-test:
