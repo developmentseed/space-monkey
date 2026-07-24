@@ -215,13 +215,21 @@ jobs:
           BASE
           } > "$PROMPT"
 
+      # TEMPORARY diagnostics - remove once the UnknownError root cause is found
+      - name: DEBUG list models
+        continue-on-error: true
+        env:
+          OPENCODE_CONFIG: ${{ runner.temp }}/opencode.json
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+        run: opencode models openrouter --print-logs --log-level DEBUG
+
       - name: Run monkey test
         continue-on-error: true
         env:
           OPENCODE_CONFIG: ${{ runner.temp }}/opencode.json
           OPENCODE_DISABLE_AUTOUPDATE: 'true'
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        run: opencode run "$(cat "$RUNNER_TEMP/monkey-prompt.txt")" > "$RUNNER_TEMP/monkey-report.md"
+        run: opencode run "$(cat "$RUNNER_TEMP/monkey-prompt.txt")" --print-logs --log-level DEBUG > "$RUNNER_TEMP/monkey-report.md"
 
       - name: Publish report to job summary
         id: report
