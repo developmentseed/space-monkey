@@ -228,7 +228,7 @@ jobs:
         run: |
           REPORT="$RUNNER_TEMP/monkey-report.md"
           {
-            echo "## 🐒 Monkey Test"
+            echo "## Monkey Test"
             echo ""
             if [ -s "$REPORT" ]; then
               cat "$REPORT"
@@ -250,7 +250,7 @@ jobs:
           BODY_FILE="$RUNNER_TEMP/comment.md"
           {
             echo "$MARKER"
-            echo "## 🐒 Monkey Test"
+            echo "## Monkey Test"
             echo ""
             if [ -s "$REPORT" ]; then
               head -c 60000 "$REPORT"

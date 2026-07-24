@@ -1,4 +1,4 @@
-# 🐒🚀 space-monkey
+# space-monkey
 
 LLM-driven exploratory ("monkey") testing for deployed web apps, as a reusable
 GitHub Actions workflow. Named for the [space monkeys](https://en.wikipedia.org/wiki/Monkeys_and_apes_in_space) in the 1950s and 1960s,
