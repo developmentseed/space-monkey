@@ -17,7 +17,7 @@ permissions:
 
 jobs:
   monkey-test:
-    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0
+    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0.1.0
     with:
       # Point this at whatever's deployed and testable - no staging/prod
       # distinction is assumed.

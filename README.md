@@ -29,7 +29,7 @@ permissions:
 
 jobs:
   monkey-test:
-    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0
+    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0.1.0
     with:
       base_url: ${{ vars.TEST_TARGET_URL }}
       context: tests/monkey/context.md
@@ -69,7 +69,7 @@ This workflow never fails the job based on findings — the test is non-determin
 ```yaml
 jobs:
   monkey-test:
-    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0
+    uses: developmentseed/space-monkey/.github/workflows/monkey-test.yml@v0.1.0
     with: { base_url: ${{ vars.TEST_TARGET_URL }} }
     secrets: { OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }} }
   gate:
@@ -108,10 +108,10 @@ The base prompt is deliberately generic. The `context` input is where the test i
 
 ## Using from other repos and orgs
 
-This repo is currently **private**, so only `developmentseed` repos can call it, and only after enabling access: Settings → Actions → General → Access → "Accessible from repositories in the 'developmentseed' organization".
+This repo is currently **private**, so only `developmentseed` repos can call it - org-wide access is already enabled (Settings → Actions → General → Access → "Accessible from repositories in the 'developmentseed' organization").
 
 For client-org repos, this repo must be made **public**; private workflows cannot be shared across orgs on our plan. Client orgs that restrict allowed actions must also add `developmentseed/space-monkey@*` to their allowlist, and bring their own `OPENROUTER_API_KEY` secret.
 
 ## Versioning
 
-Semver releases are planned.
+Releases are tagged with exact semver versions (e.g. `v0.1.0`). Pin to the exact tag you tested against - there is no moving major-version tag to auto-track, so upgrading means deliberately bumping your `@vX.Y.Z` reference after checking the [releases](https://github.com/developmentseed/space-monkey/releases) for changes.
