@@ -17,7 +17,7 @@ on:
           restrictions configured on the API key itself apply.
         required: false
         type: string
-        default: openrouter/auto
+        default: openrouter/auto-beta
       context:
         description: >-
           App-specific testing context appended to the base prompt. Either

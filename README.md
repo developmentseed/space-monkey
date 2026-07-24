@@ -46,7 +46,7 @@ You choose when it runs: the `on:` block lives in _your_ workflow. Some choices 
 | Input | Type | Default | Description |
 | --- | --- | --- | --- |
 | `base_url` | string | _(required)_ | URL of the deployed app to test — staging, a preview deploy, production, whatever's reachable. No environment tiers are assumed. |
-| `model` | string | `openrouter/auto` | OpenRouter model slug (e.g. `google/gemini-3.1-flash-lite`). The default uses [OpenRouter auto-routing](https://openrouter.ai/openrouter/auto), so restrictions configured on your API key (allowed models/providers, data retention) govern what runs. |
+| `model` | string | `openrouter/auto-beta` | OpenRouter model slug (e.g. `google/gemini-3.1-flash-lite`). The default uses [OpenRouter's auto router](https://openrouter.ai/docs/guides/routing/routers/auto-router), so restrictions configured on your API key (allowed models/providers, data retention) govern what runs. |
 | `context` | string | `''` | App-specific testing context appended to the base prompt: UI quirks (e.g. "a feedback modal appears on load — dismiss it"), how to sign out, areas to focus on. Accepts inline text **or** a path to a file in your repo. |
 | `pr_comment` | boolean | `false` | Post the report as a sticky PR comment (updated in place on re-runs). Requires `pull-requests: write`. |
 | `timeout_minutes` | number | `45` | Job timeout. |
